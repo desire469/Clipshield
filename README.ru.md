@@ -38,7 +38,7 @@ error.log  mysite.example              error.log  site1.internal
 В конфиг lazy.nvim добавить:
 
 ```lua
-{ "vekusxd/Clipshield" }
+{ "desire469/Clipshield" }
 ```
 
 Всё. `setup()` вызывать не нужно, плагин работает сразу после установки.

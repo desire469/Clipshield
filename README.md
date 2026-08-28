@@ -35,7 +35,7 @@ guessed. See [docs/adr/0001-mask-clipboard-only.md](docs/adr/0001-mask-clipboard
 With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
-{ "vekusxd/Clipshield" }
+{ "desire469/Clipshield" }
 ```
 
 No `setup()` call is needed — it works as soon as it is installed.
