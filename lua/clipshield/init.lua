@@ -1,0 +1,202 @@
+local mask = require("clipshield.mask")
+local watchlist = require("clipshield.watchlist")
+
+local M = {}
+
+M.config = {
+  -- Where the Watchlist lives. One JSON object per line.
+  watchlist = vim.fs.joinpath(vim.fn.stdpath("data"), "clipshield", "watchlist.jsonl"),
+  -- Entries with no replacement of their own get this word plus a number:
+  -- REDACTED1, REDACTED2, ...
+  placeholder = "REDACTED",
+  -- Refuse to add anything shorter than this; short entries match everywhere.
+  min_length = 8,
+  -- Default mappings. Set to false to bind everything yourself.
+  keymaps = true,
+  prefix = "<leader>s",
+}
+
+--- Set while performing a Raw Yank, so the TextYankPost handler stands aside.
+local skipping = false
+
+--- Which clipboard registers this yank landed in, if any. The unnamed register
+--- is deliberately not among them: in-buffer editing must keep working on the
+--- true value.
+local function clipboard_targets(regname)
+  if regname == "+" or regname == "*" then
+    return { [regname] = true }
+  end
+  if regname ~= "" then
+    return {}
+  end
+
+  local targets = {}
+  for _, flag in ipairs(vim.split(vim.o.clipboard, ",", { trimempty = true })) do
+    if flag == "unnamedplus" then
+      targets["+"] = true
+    elseif flag == "unnamed" then
+      targets["*"] = true
+    end
+  end
+  return targets
+end
+
+local function on_yank()
+  if skipping then return end
+
+  local event = vim.v.event
+  local targets = clipboard_targets(event.regname)
+  if next(targets) == nil then return end
+
+  local entries, err = watchlist.read()
+  if err then
+    -- The one thing worth breaking the silence for: a Watchlist that cannot be
+    -- read means the user believes they are protected while they are not.
+    vim.notify("clipshield: " .. err, vim.log.levels.ERROR)
+  end
+  if #entries == 0 then return end
+
+  local text = table.concat(event.regcontents, "\n")
+  local masked, count = mask.apply(text, entries, M.config.placeholder)
+  if count == 0 then return end
+
+  local lines = vim.split(masked, "\n", { plain = true })
+  local regtype = event.regtype
+  -- A blockwise register carries its own width, which no longer describes the
+  -- masked text. Charwise is the only honest thing to fall back to.
+  if regtype:sub(1, 1) == "\22" then regtype = "v" end
+
+  for register in pairs(targets) do
+    vim.fn.setreg(register, lines, regtype)
+  end
+end
+
+--- Run a yank without masking it.
+local function without_masking(command)
+  skipping = true
+  local ok, err = pcall(vim.cmd, command)
+  skipping = false
+  if not ok then
+    vim.notify("clipshield: " .. tostring(err), vim.log.levels.ERROR)
+  end
+end
+
+function M.yank_raw_selection()
+  without_masking('normal! gv"+y')
+end
+
+function M.yank_raw_range(line1, line2)
+  without_masking(("%d,%dyank +"):format(line1, line2))
+end
+
+--- The selection, or nil if it cannot go into the Watchlist.
+local function selected_value()
+  local lines = vim.fn.getregion(
+    vim.fn.getpos("'<"),
+    vim.fn.getpos("'>"),
+    { type = vim.fn.visualmode() }
+  )
+  local value = vim.trim(table.concat(lines, "\n"))
+
+  if #value < M.config.min_length then
+    vim.notify(
+      ("clipshield: refusing to add %d characters — anything under %d matches far too much")
+        :format(#value, M.config.min_length),
+      vim.log.levels.WARN
+    )
+    return nil
+  end
+
+  for _, entry in ipairs(watchlist.read()) do
+    -- Already known: nothing to do, and no reason to ask anything.
+    if entry.value == value then return nil end
+  end
+
+  return value
+end
+
+--- Add the selection, asking what it should read as when copied.
+function M.add_selection()
+  local value = selected_value()
+  if not value then return end
+
+  vim.ui.input({ prompt = "Replace with: " }, function(replacement)
+    if replacement == nil then return end
+    watchlist.add(value, vim.trim(replacement))
+  end)
+end
+
+--- Add the selection with the numbered default placeholder, asking nothing.
+--- Any prompt here would be read as "what should this turn into?", which is
+--- the other mapping's job.
+function M.add_selection_default()
+  local value = selected_value()
+  if not value then return end
+  watchlist.add(value, "")
+end
+
+function M.open()
+  local file = watchlist.path()
+  vim.fn.mkdir(vim.fn.fnamemodify(file, ":h"), "p")
+  vim.cmd.edit(vim.fn.fnameescape(file))
+end
+
+function M.delete()
+  local entries = watchlist.read()
+  if #entries == 0 then
+    vim.notify("clipshield: the Watchlist is empty", vim.log.levels.INFO)
+    return
+  end
+
+  vim.ui.select(entries, {
+    prompt = "Remove from Watchlist:",
+    format_item = watchlist.describe,
+  }, function(choice)
+    if choice then watchlist.remove(choice.value) end
+  end)
+end
+
+--- Mappings already installed, so that a later setup() can take them back.
+--- plugin/ runs before setup(), so keymaps = false must be able to undo them.
+local applied = {}
+
+local function apply_keymaps()
+  for _, map in ipairs(applied) do
+    pcall(vim.keymap.del, map[1], map[2])
+  end
+  applied = {}
+
+  if not M.config.keymaps then return end
+  local p = M.config.prefix
+
+  local function map(mode, lhs, rhs, desc)
+    vim.keymap.set(mode, lhs, rhs, { silent = true, desc = "clipshield: " .. desc })
+    applied[#applied + 1] = { mode, lhs }
+  end
+
+  map("x", p .. "a", ":<C-u>lua require('clipshield').add_selection()<CR>",
+    "add selection to Watchlist, choosing what it reads as")
+  map("x", p .. "A", ":<C-u>lua require('clipshield').add_selection_default()<CR>",
+    "add selection to Watchlist with the default placeholder")
+  map("x", p .. "y", ":<C-u>lua require('clipshield').yank_raw_selection()<CR>",
+    "yank selection unmasked")
+  map("n", p .. "l", M.open, "open Watchlist")
+  map("n", p .. "d", M.delete, "remove from Watchlist")
+end
+
+function M.setup(opts)
+  M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+  apply_keymaps()
+end
+
+--- Called once from plugin/clipshield.lua. The plugin works without setup().
+function M.bootstrap()
+  vim.api.nvim_create_autocmd("TextYankPost", {
+    group = vim.api.nvim_create_augroup("clipshield", { clear = true }),
+    callback = on_yank,
+    desc = "clipshield: mask Secrets on their way to the clipboard",
+  })
+  apply_keymaps()
+end
+
+return M
