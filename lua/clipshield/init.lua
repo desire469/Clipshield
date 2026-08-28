@@ -54,6 +54,7 @@ local function notify_masked(masked_text, secret_count)
 end
 
 local function on_yank()
+	vim.notify("DEBUG: on_yank fired")
 	if skipping then
 		return
 	end
