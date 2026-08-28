@@ -23,17 +23,16 @@ M.config = {
 --- Set while performing a Raw Yank, so the TextYankPost handler stands aside.
 local skipping = false
 
---- Active popup window & buffer ids, so a new yank reuses or replaces the old one.
+--- Active popup window & buffer id, so a new yank replaces the old one.
 local popup_win_id = nil
 local popup_buf_id = nil
-local popup_timer = nil
+local popup_close_timer = nil
 
---- Show a floating popup with the masked clipboard contents, then auto-close.
-local function show_popup(masked_text, secret_count)
-	-- Dismiss any previous popup first.
-	if popup_timer then
-		pcall(vim.loop.timer_stop, popup_timer)
-		popup_timer = nil
+--- Safely close the current popup (if any).
+local function close_popup()
+	if popup_close_timer then
+		pcall(vim.fn.timer_stop, popup_close_timer)
+		popup_close_timer = nil
 	end
 	if popup_win_id and vim.api.nvim_win_is_valid(popup_win_id) then
 		pcall(vim.api.nvim_win_close, popup_win_id, true)
@@ -41,6 +40,13 @@ local function show_popup(masked_text, secret_count)
 	if popup_buf_id and vim.api.nvim_buf_is_valid(popup_buf_id) then
 		pcall(vim.api.nvim_buf_delete, popup_buf_id, { force = true })
 	end
+	popup_win_id = nil
+	popup_buf_id = nil
+end
+
+--- Show a floating popup with the masked clipboard contents, then auto-close.
+local function show_popup(masked_text, secret_count)
+	close_popup()
 
 	local duration = M.config.popup_duration
 	if duration <= 0 then
@@ -48,31 +54,37 @@ local function show_popup(masked_text, secret_count)
 	end
 
 	local header = ("Clipshield: %d secret(s) masked"):format(secret_count)
-	local display_lines = vim.split(masked_text, "\n", { plain = true })
+	local all_lines = vim.split(masked_text, "\n", { plain = true })
+	local total_lines = #all_lines
 
-	-- Truncate if too many lines.
+	-- Take at most popup_max_lines.
+	local display_lines = {}
 	local max_lines = M.config.popup_max_lines
-	if #display_lines > max_lines then
-		display_lines = vim.list_slice(display_lines, 1, max_lines)
-		table.insert(
-			display_lines,
-			("... (%d more lines)"):format(#vim.split(masked_text, "\n", { plain = true }) - max_lines)
-		)
+	for i = 1, math.min(total_lines, max_lines) do
+		display_lines[i] = all_lines[i]
+	end
+	if total_lines > max_lines then
+		display_lines[#display_lines + 1] = ("... (%d more lines)"):format(total_lines - max_lines)
 	end
 
 	-- Truncate very long single lines for display.
 	local max_width = 60
 	for i, line in ipairs(display_lines) do
 		if vim.api.nvim_strwidth(line) > max_width then
-			display_lines[i] = vim.fn.strpart(line, 0, max_width - 1) .. "…"
+			display_lines[i] = vim.fn.strcharpart(line, 0, max_width - 1) .. "…"
 		end
 	end
 
 	local buf = vim.api.nvim_create_buf(false, true)
 	popup_buf_id = buf
 
-	local content = { header, "─" .. string.rep("─", #header - 1), "" }
-	vim.list_extend(content, display_lines)
+	-- Build content: header + separator + blank line + masked text.
+	local sep_len = vim.api.nvim_strwidth(header)
+	local sep = string.rep("─", sep_len)
+	local content = { header, sep, "" }
+	for _, line in ipairs(display_lines) do
+		content[#content + 1] = line
+	end
 	vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
 
 	-- Highlight the header line.
@@ -80,6 +92,7 @@ local function show_popup(masked_text, secret_count)
 	-- Highlight the separator.
 	vim.api.nvim_buf_add_highlight(buf, 0, "LineNr", 1, 0, -1)
 
+	-- Compute window size from content.
 	local width = 0
 	for _, line in ipairs(content) do
 		local w = vim.api.nvim_strwidth(line)
@@ -104,22 +117,12 @@ local function show_popup(masked_text, secret_count)
 	local win = vim.api.nvim_open_win(buf, false, win_opts)
 	popup_win_id = win
 
-	-- Set window highlight.
+	-- Slight transparency so it feels like a notification, not a buffer.
 	vim.api.nvim_win_set_option(win, "winblend", 15)
 
-	popup_timer = vim.loop.new_timer()
-	popup_timer:start(duration, 0, function()
-		vim.schedule(function()
-			if popup_win_id and vim.api.nvim_win_is_valid(popup_win_id) then
-				pcall(vim.api.nvim_win_close, popup_win_id, true)
-			end
-			if popup_buf_id and vim.api.nvim_buf_is_valid(popup_buf_id) then
-				pcall(vim.api.nvim_buf_delete, popup_buf_id, { force = true })
-			end
-			popup_win_id = nil
-			popup_buf_id = nil
-			popup_timer = nil
-		end)
+	-- Auto-close after `duration` ms.
+	popup_close_timer = vim.fn.timer_start(duration, function()
+		vim.schedule(close_popup)
 	end)
 end
 
@@ -158,8 +161,6 @@ local function on_yank()
 
 	local entries, err = watchlist.read()
 	if err then
-		-- The one thing worth breaking the silence for: a Watchlist that cannot be
-		-- read means the user believes they are protected while they are not.
 		vim.notify("clipshield: " .. err, vim.log.levels.ERROR)
 	end
 	if #entries == 0 then
@@ -174,8 +175,6 @@ local function on_yank()
 
 	local lines = vim.split(masked, "\n", { plain = true })
 	local regtype = event.regtype
-	-- A blockwise register carries its own width, which no longer describes the
-	-- masked text. Charwise is the only honest thing to fall back to.
 	if regtype:sub(1, 1) == "\22" then
 		regtype = "v"
 	end
@@ -222,7 +221,6 @@ local function selected_value()
 	end
 
 	for _, entry in ipairs(watchlist.read()) do
-		-- Already known: nothing to do, and no reason to ask anything.
 		if entry.value == value then
 			return nil
 		end
@@ -247,8 +245,6 @@ function M.add_selection()
 end
 
 --- Add the selection with the numbered default placeholder, asking nothing.
---- Any prompt here would be read as "what should this turn into?", which is
---- the other mapping's job.
 function M.add_selection_default()
 	local value = selected_value()
 	if not value then
@@ -281,7 +277,6 @@ function M.delete()
 end
 
 --- Mappings already installed, so that a later setup() can take them back.
---- plugin/ runs before setup(), so keymaps = false must be able to undo them.
 local applied = {}
 
 local function apply_keymaps()
