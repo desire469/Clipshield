@@ -46,12 +46,15 @@ No `setup()` call is needed — it works as soon as it is installed.
 | -------------- | ------ | ------------------------------------------------------- |
 | `<leader>sa`   | visual | Add the selection, asking what it should read as        |
 | `<leader>sA`   | visual | Add the selection with the default placeholder, no questions |
+| `<leader>sn`   | visual | Add the selection under a name, then say what it reads as |
 | `<leader>sy`   | visual | Copy the selection **unmasked**, when the key is the point |
 | `<leader>sl`   | normal | Open the watchlist as an ordinary buffer                |
 | `<leader>sd`   | normal | Pick an entry to remove                                 |
+| `<leader>sr`   | normal | Give an existing entry its replacement                  |
 
-Same things as commands: `:ClipshieldAdd` and `:ClipshieldAddDefault` (with a range), `:YankRaw`
-(with a range), `:ClipshieldList`, `:ClipshieldDelete`.
+Same things as commands: `:ClipshieldAdd`, `:ClipshieldAddDefault` and `:ClipshieldAddNamed`
+(with a range), `:ClipshieldSetReplacement`, `:YankRaw` (with a range), `:ClipshieldList`,
+`:ClipshieldDelete`.
 
 Editing the list *is* opening the file. It is a normal buffer: change a line, delete one with `dd`,
 add one by hand, `:w`. Changes take effect on the next copy.
@@ -63,11 +66,13 @@ starting with `#` are ignored, so you can leave yourself notes.
 
 ```
 # work
-{"value":"mysite.example","replacement":"site1.internal"}
+{"value":"mysite.example","replacement":"site1.internal","label":"work host"}
 {"value":"sk-proj-Ab3xK9zzQq"}
 ```
 
 `replacement` is what the value reads as when copied; leave it out for the numbered default.
+`label` is a short name for the entry — what `:ClipshieldDelete` and `<leader>sr` menus show it
+by. It is display-only and never lands in copied text.
 
 **This file holds your real keys, in the clear.** That is unavoidable — matching them in copied text
 means knowing what they are. Treat it like any other file full of secrets.

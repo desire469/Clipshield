@@ -59,12 +59,14 @@ error.log  mysite.example              error.log  site1.internal
 | ------------ | ---------- | --------------------------------------------------- |
 | `<leader>sa` | визуальный | Добавить выделенное, спросит **на что заменять**      |
 | `<leader>sA` | визуальный | Добавить с дефолтной заглушкой, ничего не спрашивает  |
+| `<leader>sn` | визуальный | Добавить под именем: спросит имя, потом замену        |
 | `<leader>sy` | визуальный | Скопировать выделенное **без маскирования**          |
 | `<leader>sl` | обычный    | Открыть список обычным буфером                       |
 | `<leader>sd` | обычный    | Выбрать запись и удалить                             |
+| `<leader>sr` | обычный    | Задать замену существующей записи                   |
 
-То же самое командами: `:ClipshieldAdd`, `:ClipshieldAddDefault`, `:YankRaw`, `:ClipshieldList`,
-`:ClipshieldDelete`.
+То же самое командами: `:ClipshieldAdd`, `:ClipshieldAddDefault`, `:ClipshieldAddNamed`,
+`:ClipshieldSetReplacement`, `:YankRaw`, `:ClipshieldList`, `:ClipshieldDelete`.
 
 Обычное копирование (`y`, `yy`, `"+y`) трогать не надо — оно маскируется само.
 
@@ -77,11 +79,13 @@ error.log  mysite.example              error.log  site1.internal
 
 ```
 # рабочее
-{"value":"mysite.example","replacement":"site1.internal"}
+{"value":"mysite.example","replacement":"site1.internal","label":"рабочий хост"}
 {"value":"sk-proj-Ab3xK9zzQq"}
 ```
 
 `replacement` — то, чем значение притворяется при копировании. Нет поля — будет заглушка с номером.
+`label` — короткое имя записи, под которым она видна в меню `<leader>sd` и `<leader>sr`.
+Имя только для меню, в скопированный текст оно никогда не попадает.
 
 Редактируется просто как текст: `<leader>sl` открывает файл обычным буфером, дальше `dd` чтобы
 удалить строку, руками дописать чтобы добавить, `:w` чтобы сохранить. Изменения подхватываются

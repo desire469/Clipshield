@@ -125,6 +125,10 @@ local function selected_value()
 
 	for _, entry in ipairs(watchlist.read()) do
 		if entry.value == value then
+			vim.notify(
+				("clipshield: %s… is already on the Watchlist"):format(value:sub(1, 12)),
+				vim.log.levels.INFO
+			)
 			return nil
 		end
 	end
@@ -143,6 +147,27 @@ function M.add_selection()
 			return
 		end
 		watchlist.add(value, vim.trim(replacement))
+	end)
+end
+
+--- Add the selection under a given name: the name identifies the entry in
+--- menus, the answer to the second prompt is what it reads as when copied.
+function M.add_selection_named()
+	local value = selected_value()
+	if not value then
+		return
+	end
+
+	vim.ui.input({ prompt = "Name this secret: " }, function(name)
+		if name == nil then
+			return
+		end
+		vim.ui.input({ prompt = "Replace with: " }, function(replacement)
+			if replacement == nil then
+				return
+			end
+			watchlist.add(value, vim.trim(replacement), vim.trim(name))
+		end)
 	end)
 end
 
@@ -177,6 +202,34 @@ function M.delete()
 	end)
 end
 
+--- Give an existing entry its replacement: pick the entry by name, then say
+--- what it should read as. An empty answer returns it to the numbered default.
+function M.set_replacement()
+	local entries = watchlist.read()
+	if #entries == 0 then
+		vim.notify("clipshield: the Watchlist is empty", vim.log.levels.INFO)
+		return
+	end
+
+	vim.ui.select(entries, {
+		prompt = "Set the replacement for:",
+		format_item = watchlist.describe,
+	}, function(choice)
+		if not choice then
+			return
+		end
+		vim.ui.input({
+			prompt = ("Replace %s with: "):format(choice.label ~= "" and choice.label or "secret"),
+			default = choice.replacement,
+		}, function(replacement)
+			if replacement == nil then
+				return
+			end
+			watchlist.update(choice.value, vim.trim(replacement))
+		end)
+	end)
+end
+
 local applied = {}
 
 local function apply_keymaps()
@@ -198,12 +251,25 @@ local function apply_keymaps()
 	map(
 		"x",
 		p .. "a",
+		":<C-u>lua require('clipshield').add_selection()<CR>",
+		"add selection to Watchlist, choosing what it reads as"
+	)
+	map(
+		"x",
+		p .. "A",
 		":<C-u>lua require('clipshield').add_selection_default()<CR>",
 		"add selection to Watchlist with the default placeholder"
+	)
+	map(
+		"x",
+		p .. "n",
+		":<C-u>lua require('clipshield').add_selection_named()<CR>",
+		"add selection to Watchlist under a name, choosing what it reads as"
 	)
 	map("x", p .. "y", ":<C-u>lua require('clipshield').yank_raw_selection()<CR>", "yank unmasked")
 	map("n", p .. "l", M.open, "open Watchlist")
 	map("n", p .. "d", M.delete, "remove from Watchlist")
+	map("n", p .. "r", M.set_replacement, "set the replacement for a Watchlist entry")
 end
 
 function M.setup(opts)

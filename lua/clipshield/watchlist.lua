@@ -40,8 +40,8 @@ function M.read()
         entries[#entries + 1] = {
           value = entry.value,
           replacement = type(entry.replacement) == "string" and entry.replacement or "",
-          -- Entries written before replacements existed. Shown in the menu so
-          -- the list stays readable, never substituted into copied text.
+          -- A short, human-chosen name for menus; display-only, never
+          -- substituted into copied text.
           label = type(entry.label) == "string" and entry.label or "",
         }
       else
@@ -83,22 +83,38 @@ function M.write(entries)
 end
 
 --- @return boolean added -- false when the value is already known
-function M.add(value, replacement)
+function M.add(value, replacement, label)
   local entries = M.read()
   for _, entry in ipairs(entries) do
     if entry.value == value then return false end
   end
-  entries[#entries + 1] = { value = value, replacement = replacement or "" }
+  entries[#entries + 1] = { value = value, replacement = replacement or "", label = label or "" }
   M.write(entries)
   return true
 end
 
---- How an entry should read in a menu: what it turns into, or failing that
---- enough of the value to recognise it by.
+--- Set an entry's replacement (and its name when `label` is not nil).
+--- @return boolean updated -- false when no entry has this value
+function M.update(value, replacement, label)
+  local entries = M.read()
+  for _, entry in ipairs(entries) do
+    if entry.value == value then
+      entry.replacement = replacement or ""
+      if label ~= nil then entry.label = label end
+      M.write(entries)
+      return true
+    end
+  end
+  return false
+end
+
+--- How an entry should read in a menu: its name (or enough of the value to
+--- recognise it by), then what it turns into.
 function M.describe(entry)
-  if entry.replacement ~= "" then return "→ " .. entry.replacement end
-  if entry.label ~= "" then return entry.label end
-  return #entry.value > 12 and (entry.value:sub(1, 12) .. "…") or entry.value
+  local name = entry.label ~= "" and entry.label
+    or (#entry.value > 12 and (entry.value:sub(1, 12) .. "…") or entry.value)
+  if entry.replacement ~= "" then return name .. " → " .. entry.replacement end
+  return name
 end
 
 function M.remove(value)

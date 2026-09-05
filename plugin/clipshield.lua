@@ -16,6 +16,14 @@ vim.api.nvim_create_user_command("ClipshieldAddDefault", function()
   clipshield.add_selection_default()
 end, { range = true, desc = "Add the selection to the Watchlist with the default placeholder" })
 
+vim.api.nvim_create_user_command("ClipshieldAddNamed", function()
+  clipshield.add_selection_named()
+end, { range = true, desc = "Add the selection to the Watchlist under a name, choosing what it reads as" })
+
+vim.api.nvim_create_user_command("ClipshieldSetReplacement", function()
+  clipshield.set_replacement()
+end, { desc = "Set or change the replacement of a Watchlist entry" })
+
 vim.api.nvim_create_user_command("ClipshieldList", function()
   clipshield.open()
 end, { desc = "Open the Watchlist" })
