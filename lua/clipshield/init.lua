@@ -108,7 +108,11 @@ function M.yank_raw_range(line1, line2)
 end
 
 local function selected_value()
-	local lines = vim.fn.getregion(vim.fn.getpos("'<"), vim.fn.getpos("'>"), { type = vim.fn.visualmode() })
+	-- visualmode() is empty before the session's first visual selection (e.g.
+	-- a range command on a fresh session); charwise is the sane fallback.
+	local mode = vim.fn.visualmode()
+	local lines =
+		vim.fn.getregion(vim.fn.getpos("'<"), vim.fn.getpos("'>"), { type = mode ~= "" and mode or "v" })
 	local value = vim.trim(table.concat(lines, "\n"))
 
 	if value == "" then
