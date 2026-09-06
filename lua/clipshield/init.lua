@@ -229,6 +229,15 @@ end
 
 local applied = {}
 
+local function merge_globals()
+	-- Options set as a global before the plugin loads (lazy `init`, plain
+	-- init.lua) — so bootstrap honours them on the first keymap pass and never
+	-- shadows a mapping it would only have to take back later.
+	if type(vim.g.clipshield) == "table" then
+		M.config = vim.tbl_deep_extend("force", M.config, vim.g.clipshield)
+	end
+end
+
 local function apply_keymaps()
 	for _, map in ipairs(applied) do
 		pcall(vim.keymap.del, map[1], map[2])
@@ -270,11 +279,13 @@ local function apply_keymaps()
 end
 
 function M.setup(opts)
+	merge_globals()
 	M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 	apply_keymaps()
 end
 
 function M.bootstrap()
+	merge_globals()
 	vim.api.nvim_create_autocmd("TextYankPost", {
 		group = vim.api.nvim_create_augroup("clipshield", { clear = true }),
 		callback = on_yank,
