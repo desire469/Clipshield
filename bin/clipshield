@@ -116,7 +116,7 @@ case "$cmd" in
         if [[ -n "$repl" ]]; then shown="$name → $repl"; else shown="$name  ·  numbered"; fi
         menu+=$'\n'"$idx  $shown"
       done <<< "$lines"
-      choice="$(printf '%s\n' "$menu" | "${picker[@]}")"
+      choice="$(printf '%s\n' "$menu" | "${picker[@]}")" || true
       [[ -z "$choice" ]] && break                          # Esc
       [[ "$choice" =~ ^([0-9]+)[[:space:]] ]] || continue  # a hint row picked
       idx="${BASH_REMATCH[1]}"
@@ -129,8 +129,8 @@ case "$cmd" in
         "──────────────────────────────" \
         "✎  Edit replacement…" \
         "↺  Use the numbered default" \
-        "✖  Delete entry" | "${picker[@]}")"
-      [[ -z "$act" ]] && continue
+        "✖  Delete entry" | "${picker[@]}")" || true
+      [[ -z "$act" ]] && continue                         # Esc — back to the list
       msg=""
       case "$act" in
         "✎"*)
