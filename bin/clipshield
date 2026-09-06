@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# clipshield — drive the plugin from outside Neovim: compositor keybinds
+# (Hyprland), shell one-liners, scripts. The work is done by the plugin's own
+# Lua (lua/clipshield/cli.lua) inside a headless, --clean Neovim; this script
+# only feeds it the text and hands the result to the clipboard.
+#
+#   clipshield add [-n NAME] [-r REPLACEMENT]   add the current selection to the Watchlist
+#   clipshield copy                             put the current selection on the clipboard, Masked
+#
+# Input: whatever is piped in; with none (a keybind has none) the Wayland
+# primary selection — the text selected right now — then the clipboard.
+#
+# Suggested Hyprland binds (put into hyprland.conf yourself):
+#   bind = SUPER SHIFT, C, exec, /path/to/Clipshield/bin/clipshield copy
+#   bind = SUPER SHIFT, A, exec, /path/to/Clipshield/bin/clipshield add
+#
+# Needs wl-clipboard (wl-paste, wl-copy). notify-send is used for feedback
+# when present; without it, messages go to stderr, where a terminal shows them.
+
+set -euo pipefail
+
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cli=(nvim --headless --clean -u NONE --cmd "set rtp^=$root" -l "$root/lua/clipshield/cli.lua")
+
+say() {
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send -t 3000 clipshield "$*"
+  else
+    echo "clipshield: $*" >&2
+  fi
+}
+
+input() {
+  local text=""
+  # A keybind process gets /dev/null or a closed stdin, not a tty — and that
+  # counts as no input, so an empty read falls through to the selection.
+  # Reading into a variable strips trailing newlines, which selections do not
+  # want anyway.
+  if [[ ! -t 0 ]]; then text="$(cat)"; fi
+  if [[ -n "$text" ]]; then printf '%s' "$text"; return; fi
+  command -v wl-paste >/dev/null 2>&1 || return 0
+  # The selection first, the clipboard as a fallback; both empty is an error
+  # the Lua side reports.
+  wl-paste --primary 2>/dev/null || wl-paste 2>/dev/null || true
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  add | copy) shift ;;
+  *)
+    echo "usage: clipshield add [-n NAME] [-r REPLACEMENT] | clipshield copy" >&2
+    exit 64
+    ;;
+esac
+
+case "$cmd" in
+  add)
+    # No data contract to keep — merge the status into one message.
+    rc=0
+    msg="$( { input | "${cli[@]}" add "$@"; } 2>&1 )" || rc=$?
+    if [[ -n "$msg" ]]; then say "$msg"; fi
+    exit "$rc"
+    ;;
+  copy)
+    command -v wl-copy >/dev/null 2>&1 || {
+      echo "clipshield: wl-copy is not installed" >&2
+      exit 2
+    }
+    status="$(mktemp)"
+    # A refused copy must not kill the script before its message is shown.
+    rc=0
+    input | "${cli[@]}" copy 2>"$status" | wl-copy || rc=$?
+    msg="$(cat "$status")"
+    rm -f "$status"
+    if [[ -n "$msg" ]]; then say "$msg"; fi
+    exit "$rc"
+    ;;
+esac

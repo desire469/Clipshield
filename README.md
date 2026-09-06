@@ -30,6 +30,9 @@ It also does not hide anything on screen, does not touch your files, and does no
 that merely *look* like secrets — a value is masked because you added it, never because it was
 guessed. See [docs/adr/0001-mask-clipboard-only.md](docs/adr/0001-mask-clipboard-only.md) for why.
 
+The one workaround for mouse selections: a compositor-level keybind can hand the selection to the
+plugin after the fact — see [From outside Neovim](#from-outside-neovim-hyprland).
+
 ## Install
 
 With [lazy.nvim](https://github.com/folke/lazy.nvim):
@@ -58,6 +61,35 @@ Same things as commands: `:ClipshieldAdd`, `:ClipshieldAddDefault` and `:Clipshi
 
 Editing the list *is* opening the file. It is a normal buffer: change a line, delete one with `dd`,
 add one by hand, `:w`. Changes take effect on the next copy.
+
+## From outside Neovim (Hyprland)
+
+`bin/clipshield` drives the same plugin from a shell — a headless `--clean` Neovim runs the
+masking and the Watchlist logic, nothing else loads. It reads whatever is piped in; with none —
+which is what a keybind gets — the current Wayland selection, then the clipboard:
+
+```sh
+printf '%s' "sk-proj-…" | bin/clipshield add -n "openai" -r "my-key"
+printf 'key=sk-proj-Ab3xK9zzQq' | bin/clipshield copy | wl-copy   # the masked text, to anywhere
+```
+
+Suggested binds for `hyprland.conf` (needs `wl-clipboard`; feedback via `notify-send` when
+present) — not applied anywhere by the plugin:
+
+```
+bind = SUPER SHIFT, C, exec, /path/to/Clipshield/bin/clipshield copy
+bind = SUPER SHIFT, A, exec, /path/to/Clipshield/bin/clipshield add
+```
+
+Select a log line with the mouse, press the copy bind, paste anywhere — the keys are not in it.
+That is the one way a mouse selection gets masked: the terminal copies from its own screen
+buffer, and only a compositor bind can catch it on the way out. The add bind puts the selection
+on the Watchlist (`-n` names it, `-r` says what it reads as; both optional).
+
+Exit codes: `0` done, `1` refused (too short, duplicate), `2` no input, `64` bad arguments. The
+Watchlist file is shared with the editor; the only gap is a user `setup()` that moves it — a
+headless Neovim does not load your config — so point the CLI at it:
+`CLIPSHIELD_WATCHLIST=…/watchlist.jsonl clipshield …`.
 
 ## The watchlist
 
