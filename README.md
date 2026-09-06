@@ -82,11 +82,18 @@ bind = SUPER SHIFT, A, exec, /path/to/Clipshield/bin/clipshield add
 bind = SUPER SHIFT, L, exec, /path/to/Clipshield/bin/clipshield list
 ```
 
-`list` opens a dmenu-style window (wofi, rofi, fuzzel or bemenu — the first
-found; override with `CLIPSHIELD_PICKER="rofi -dmenu -i"`): every entry as
-`name → replacement`, pick one to delete it, the list re-opens, Esc closes.
-Values are never printed whole and never passed through arguments — deletion
-goes by the entry number.
+`list` opens the Watchlist manager (wofi, rofi, fuzzel or bemenu — the first found;
+override with `CLIPSHIELD_PICKER="rofi -dmenu -i"`). The key legend sits at the top of the
+menu; every entry reads as `name → replacement` (or `name · numbered`). Pick one to act on it:
+
+- `✎ Edit replacement…` — a zenity dialog, prefilled with the current text; an empty answer
+  returns the entry to the numbered default
+- `↺ Use the numbered default` — the same, in one press
+- `✖ Delete entry`
+
+The list re-opens after each action, Esc closes. Entry values are never printed whole; they
+never pass through arguments — everything goes by entry number. The only argv text is the
+replacement you just typed, and that is not a secret.
 
 Select a log line with the mouse, press the copy bind, paste anywhere — the keys are not in it.
 That is the one way a mouse selection gets masked: the terminal copies from its own screen

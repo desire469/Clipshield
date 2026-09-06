@@ -6,8 +6,8 @@
 #
 #   clipshield add [-n NAME] [-r REPLACEMENT]   add the current selection to the Watchlist
 #   clipshield copy                             put the current selection on the clipboard, Masked
-#   clipshield list                             a dmenu-style window (wofi/rofi/fuzzel/bemenu):
-#                                               view the Watchlist, delete what you pick, Esc to close
+#   clipshield list                             Watchlist manager (wofi/rofi/fuzzel/bemenu +
+#                                               zenity): view, edit the replacement, delete
 #
 # Input: whatever is piped in; with none (a keybind has none) the Wayland
 # primary selection — the text selected right now — then the clipboard.
@@ -97,23 +97,56 @@ case "$cmd" in
       exit 2
     fi
 
-    # A manager, not a one-shot: delete the pick, re-show what is left.
+    # A manager, not a one-shot: pick an entry, act on it, re-show the list.
     # stdin is pinned to /dev/null: the compositor's exec passes its own tty,
     # which never EOFs and would hang the reader.
+    wl_list() { "${cli[@]}" list </dev/null 2>/dev/null; }
     while true; do
-      status="$(mktemp)"
-      lines="$("${cli[@]}" list 2>"$status" </dev/null)"
+      lines=""; menu=""; choice=""; idx=""; name=""; repl=""; shown=""; act=""; msg=""; line=""
+      lines="$(wl_list)"
       if [[ -z "$lines" ]]; then
-        msg="$(cat "$status")"
-        if [[ -n "$msg" ]]; then say "$msg"; else say "the Watchlist is empty"; fi
-        rm -f "$status"
+        say "the Watchlist is empty"
         break
       fi
-      rm -f "$status"
-      choice="$(printf '%s\n' "$lines" | "${picker[@]}")"
-      [[ -z "$choice" ]] && break  # Esc / cancelled
-      idx="${choice%%$'\t'*}"
-      msg="$("${cli[@]}" remove "$idx" </dev/null 2>&1)" || true
+      # The hint bar lives at the top of the menu: dmenu has no status line,
+      # so the first rows ARE the key legend.
+      menu="clipshield · Enter: edit · Esc: close"
+      menu+=$'\n'"──────────────────────────────"
+      while IFS=$'\t' read -r idx name repl; do
+        if [[ -n "$repl" ]]; then shown="$name → $repl"; else shown="$name  ·  numbered"; fi
+        menu+=$'\n'"$idx  $shown"
+      done <<< "$lines"
+      choice="$(printf '%s\n' "$menu" | "${picker[@]}")"
+      [[ -z "$choice" ]] && break                          # Esc
+      [[ "$choice" =~ ^([0-9]+)[[:space:]] ]] || continue  # a hint row picked
+      idx="${BASH_REMATCH[1]}"
+      line="$(wl_list | awk -F '\t' -v i="$idx" '$1 == i')"
+      [[ -z "$line" ]] && continue
+      IFS=$'\t' read -r _ name repl <<< "$line"
+
+      act="$(printf '%s\n' \
+        "edit: $name · Enter: apply · Esc: back" \
+        "──────────────────────────────" \
+        "✎  Edit replacement…" \
+        "↺  Use the numbered default" \
+        "✖  Delete entry" | "${picker[@]}")"
+      [[ -z "$act" ]] && continue
+      msg=""
+      case "$act" in
+        "✎"*)
+          if ! command -v zenity >/dev/null 2>&1; then
+            say "clipshield: zenity is needed to type a replacement"
+            continue
+          fi
+          ans="$(zenity --entry --title clipshield \
+            --text "What should ‘$name’ read as when copied?" \
+            --entry-text "$repl" 2>/dev/null)" || continue
+          msg="$("${cli[@]}" set "$idx" "$ans" </dev/null 2>&1)" || true
+          ;;
+        "↺"*) msg="$("${cli[@]}" set "$idx" "" </dev/null 2>&1)" || true ;;
+        "✖"*) msg="$("${cli[@]}" remove "$idx" </dev/null 2>&1)" || true ;;
+        *) continue ;;   # hint or separator picked
+      esac
       if [[ -n "$msg" ]]; then say "$msg"; fi
     done
     ;;

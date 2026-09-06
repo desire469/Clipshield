@@ -4,8 +4,10 @@
 --
 --   printf '%s' "$text" | cli.lua add [-n NAME] [-r REPLACEMENT]
 --   printf '%s' "$text" | cli.lua copy
---   cli.lua list                        numbered menu lines: N\tname → replacement
+--   cli.lua list                        menu lines: N, name, replacement (columns)
 --   cli.lua remove N                    delete entry number N from the last list
+--   cli.lua set N [REPLACEMENT]         change what entry N reads as; no argument —
+--                                       back to the numbered default
 --
 -- `add` prints a status line to stdout. `copy` writes the Masked text to
 -- stdout exactly as received (bin/clipshield pipes it into wl-copy) and the
@@ -36,8 +38,8 @@ end
 
 local function parse(args)
 	local cmd = args[1]
-	if cmd ~= "add" and cmd ~= "copy" and cmd ~= "list" and cmd ~= "remove" then
-		die(64, "usage: cli add [-n NAME] [-r REPLACEMENT] | cli copy | cli list | cli remove N")
+	if cmd ~= "add" and cmd ~= "copy" and cmd ~= "list" and cmd ~= "remove" and cmd ~= "set" then
+		die(64, "usage: cli add [-n NAME] [-r REPLACEMENT] | cli copy | cli list | cli remove N | cli set N [REPLACEMENT]")
 	end
 
 	local name, replacement, index, i = "", "", nil, 2
@@ -47,8 +49,10 @@ local function parse(args)
 			name, i = args[i + 1] or die(64, "-n needs a name"), i + 2
 		elseif cmd == "add" and flag == "-r" then
 			replacement, i = args[i + 1] or die(64, "-r needs a replacement"), i + 2
-		elseif cmd == "remove" and index == nil and tostring(flag):match("^%d+$") then
+		elseif (cmd == "remove" or cmd == "set") and index == nil and tostring(flag):match("^%d+$") then
 			index, i = flag, i + 1
+		elseif cmd == "set" and index ~= nil and replacement == "" then
+			replacement, i = flag, i + 1
 		else
 			die(64, "unknown argument: " .. tostring(flag))
 		end
@@ -79,8 +83,12 @@ if cmd == "list" then
 	if err then
 		io.stderr:write("clipshield: " .. err .. "\n")
 	end
+	-- Three columns — N, the menu name, the replacement — so a caller can
+	-- render its own display and still prefill an editor with the third.
 	for n, entry in ipairs(entries) do
-		io.write(("%d\t%s\n"):format(n, watchlist.describe(entry)))
+		local name = entry.label ~= "" and entry.label
+			or (#entry.value > 12 and (entry.value:sub(1, 12) .. "…") or entry.value)
+		io.write(("%d\t%s\t%s\n"):format(n, name, entry.replacement))
 	end
 	os.exit(0, true)
 end
@@ -99,6 +107,26 @@ if cmd == "remove" then
 	end
 	watchlist.remove(entry.value)
 	io.write(("removed %s\n"):format(watchlist.describe(entry)))
+	os.exit(0, true)
+end
+
+if cmd == "set" then
+	if not index then
+		die(64, "set needs the entry number printed by list")
+	end
+	local entries, err = watchlist.read()
+	if err then
+		die(1, err)
+	end
+	local entry = entries[tonumber(index)]
+	if not entry then
+		die(1, ("no entry number %s — the list has changed, run list again"):format(index))
+	end
+	watchlist.update(entry.value, vim.trim(replacement))
+	local name = entry.label ~= "" and entry.label
+		or (#entry.value > 12 and (entry.value:sub(1, 12) .. "…") or entry.value)
+	local repl = replacement ~= "" and ("'" .. replacement .. "'") or "the numbered placeholder"
+	io.write(("%s now reads as %s\n"):format(name, repl))
 	os.exit(0, true)
 end
 
