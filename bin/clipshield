@@ -19,7 +19,9 @@
 
 set -euo pipefail
 
-root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+# Resolve through symlinks (e.g. ~/.local/bin/clipshield) to find the plugin.
+script="$(readlink -f -- "${BASH_SOURCE[0]}")"
+root="$(cd -- "$(dirname -- "$script")/.." && pwd)"
 cli=(nvim --headless --clean -u NONE --cmd "set rtp^=$root" -l "$root/lua/clipshield/cli.lua")
 
 say() {
