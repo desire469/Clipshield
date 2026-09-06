@@ -79,7 +79,14 @@ present) — not applied anywhere by the plugin:
 ```
 bind = SUPER SHIFT, C, exec, /path/to/Clipshield/bin/clipshield copy
 bind = SUPER SHIFT, A, exec, /path/to/Clipshield/bin/clipshield add
+bind = SUPER SHIFT, L, exec, /path/to/Clipshield/bin/clipshield list
 ```
+
+`list` opens a dmenu-style window (wofi, rofi, fuzzel or bemenu — the first
+found; override with `CLIPSHIELD_PICKER="rofi -dmenu -i"`): every entry as
+`name → replacement`, pick one to delete it, the list re-opens, Esc closes.
+Values are never printed whole and never passed through arguments — deletion
+goes by the entry number.
 
 Select a log line with the mouse, press the copy bind, paste anywhere — the keys are not in it.
 That is the one way a mouse selection gets masked: the terminal copies from its own screen

@@ -4,10 +4,13 @@
 --
 --   printf '%s' "$text" | cli.lua add [-n NAME] [-r REPLACEMENT]
 --   printf '%s' "$text" | cli.lua copy
+--   cli.lua list                        numbered menu lines: N\tname → replacement
+--   cli.lua remove N                    delete entry number N from the last list
 --
 -- `add` prints a status line to stdout. `copy` writes the Masked text to
 -- stdout exactly as received (bin/clipshield pipes it into wl-copy) and the
--- status to stderr. Errors always go to stderr.
+-- status to stderr. `remove` takes the entry NUMBER, never the value — a
+-- secret passed as an argument would be visible in `ps`. Errors go to stderr.
 -- Exit codes: 0 done · 1 refused (duplicate) · 2 no usable input.
 --
 -- The Watchlist is the same file the editor uses. One exception: a user
@@ -33,25 +36,27 @@ end
 
 local function parse(args)
 	local cmd = args[1]
-	if cmd ~= "add" and cmd ~= "copy" then
-		die(64, "usage: cli add [-n NAME] [-r REPLACEMENT] | cli copy")
+	if cmd ~= "add" and cmd ~= "copy" and cmd ~= "list" and cmd ~= "remove" then
+		die(64, "usage: cli add [-n NAME] [-r REPLACEMENT] | cli copy | cli list | cli remove N")
 	end
 
-	local name, replacement, i = "", "", 2
+	local name, replacement, index, i = "", "", nil, 2
 	while i <= #args do
 		local flag = args[i]
 		if cmd == "add" and flag == "-n" then
 			name, i = args[i + 1] or die(64, "-n needs a name"), i + 2
 		elseif cmd == "add" and flag == "-r" then
 			replacement, i = args[i + 1] or die(64, "-r needs a replacement"), i + 2
+		elseif cmd == "remove" and index == nil and tostring(flag):match("^%d+$") then
+			index, i = flag, i + 1
 		else
 			die(64, "unknown argument: " .. tostring(flag))
 		end
 	end
-	return cmd, name, replacement
+	return cmd, name, replacement, index
 end
 
-local cmd, name, replacement = parse(script_args())
+local cmd, name, replacement, index = parse(script_args())
 
 local clipshield = require("clipshield")
 local override = os.getenv("CLIPSHIELD_WATCHLIST")
@@ -61,6 +66,34 @@ end
 local watchlist = require("clipshield.watchlist")
 
 local text = io.read("*a") or ""
+
+if cmd == "list" then
+	local entries, err = watchlist.read()
+	if err then
+		io.stderr:write("clipshield: " .. err .. "\n")
+	end
+	for n, entry in ipairs(entries) do
+		io.write(("%d\t%s\n"):format(n, watchlist.describe(entry)))
+	end
+	os.exit(0, true)
+end
+
+if cmd == "remove" then
+	if not index then
+		die(64, "remove needs the entry number printed by list")
+	end
+	local entries, err = watchlist.read()
+	if err then
+		die(1, err)
+	end
+	local entry = entries[tonumber(index)]
+	if not entry then
+		die(1, ("no entry number %s — the list has changed, run list again"):format(index))
+	end
+	watchlist.remove(entry.value)
+	io.write(("removed %s\n"):format(watchlist.describe(entry)))
+	os.exit(0, true)
+end
 
 if cmd == "add" then
 	local value = vim.trim(text)

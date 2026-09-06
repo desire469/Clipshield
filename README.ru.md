@@ -91,7 +91,14 @@ printf 'key=sk-proj-Ab3xK9zzQq' | bin/clipshield copy | wl-copy   # замаск
 ```
 bind = SUPER SHIFT, C, exec, /path/to/Clipshield/bin/clipshield copy
 bind = SUPER SHIFT, A, exec, /path/to/Clipshield/bin/clipshield add
+bind = SUPER SHIFT, L, exec, /path/to/Clipshield/bin/clipshield list
 ```
+
+`list` открывает окошко в стиле dmenu (wofi, rofi, fuzzel или bemenu — кто
+первый найдётся; переопределяется через `CLIPSHIELD_PICKER="rofi -dmenu -i"`):
+все записи вида `имя → замена`, выбор удаляет запись и список открывается
+заново, Esc закрывает. Значения никогда не печатаются целиком и не проходят
+через аргументы — удаление идёт по номеру записи.
 
 Выделил строку лога мышью, нажал бинд копирования, вставил куда угодно — ключей там нет. Это
 единственный способ замаскировать мышиное выделение: терминал копирует из своего экранного

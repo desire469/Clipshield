@@ -6,6 +6,8 @@
 #
 #   clipshield add [-n NAME] [-r REPLACEMENT]   add the current selection to the Watchlist
 #   clipshield copy                             put the current selection on the clipboard, Masked
+#   clipshield list                             a dmenu-style window (wofi/rofi/fuzzel/bemenu):
+#                                               view the Watchlist, delete what you pick, Esc to close
 #
 # Input: whatever is piped in; with none (a keybind has none) the Wayland
 # primary selection — the text selected right now — then the clipboard.
@@ -48,9 +50,9 @@ input() {
 
 cmd="${1:-}"
 case "$cmd" in
-  add | copy) shift ;;
+  add | copy | list) shift ;;
   *)
-    echo "usage: clipshield add [-n NAME] [-r REPLACEMENT] | clipshield copy" >&2
+    echo "usage: clipshield add [-n NAME] [-r REPLACEMENT] | clipshield copy | clipshield list" >&2
     exit 64
     ;;
 esac
@@ -76,5 +78,41 @@ case "$cmd" in
     rm -f "$status"
     if [[ -n "$msg" ]]; then say "$msg"; fi
     exit "$rc"
+    ;;
+  list)
+    picker=()
+    if [[ -n "${CLIPSHIELD_PICKER:-}" ]]; then
+      # shellcheck disable=SC2206
+      picker=(${CLIPSHIELD_PICKER})
+    elif command -v wofi >/dev/null 2>&1; then
+      picker=(wofi --dmenu -i -p clipshield)
+    elif command -v rofi >/dev/null 2>&1; then
+      picker=(rofi -dmenu -i -p clipshield)
+    elif command -v fuzzel >/dev/null 2>&1; then
+      picker=(fuzzel --dmenu)
+    elif command -v bemenu >/dev/null 2>&1; then
+      picker=(bemenu -p clipshield)
+    else
+      echo "clipshield: no dmenu-style picker found (wofi, rofi, fuzzel, bemenu)" >&2
+      exit 2
+    fi
+
+    # A manager, not a one-shot: delete the pick, re-show what is left.
+    while true; do
+      status="$(mktemp)"
+      lines="$("${cli[@]}" list 2>"$status")"
+      if [[ -z "$lines" ]]; then
+        msg="$(cat "$status")"
+        if [[ -n "$msg" ]]; then say "$msg"; else say "the Watchlist is empty"; fi
+        rm -f "$status"
+        break
+      fi
+      rm -f "$status"
+      choice="$(printf '%s\n' "$lines" | "${picker[@]}")"
+      [[ -z "$choice" ]] && break  # Esc / cancelled
+      idx="${choice%%$'\t'*}"
+      msg="$("${cli[@]}" remove "$idx" 2>&1)" || true
+      if [[ -n "$msg" ]]; then say "$msg"; fi
+    done
     ;;
 esac
