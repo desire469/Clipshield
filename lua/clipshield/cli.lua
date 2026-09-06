@@ -65,7 +65,14 @@ if override and override ~= "" then
 end
 local watchlist = require("clipshield.watchlist")
 
-local text = io.read("*a") or ""
+local text
+if vim.uv.guess_handle(0) == "tty" then
+	-- A tty never EOFs: reading it would hang a bind-launched process forever.
+	-- (Hyprland exec inherits the compositor's tty.) Treat it as no input.
+	text = ""
+else
+	text = io.read("*a") or ""
+end
 
 if cmd == "list" then
 	local entries, err = watchlist.read()

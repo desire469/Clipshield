@@ -98,9 +98,11 @@ case "$cmd" in
     fi
 
     # A manager, not a one-shot: delete the pick, re-show what is left.
+    # stdin is pinned to /dev/null: the compositor's exec passes its own tty,
+    # which never EOFs and would hang the reader.
     while true; do
       status="$(mktemp)"
-      lines="$("${cli[@]}" list 2>"$status")"
+      lines="$("${cli[@]}" list 2>"$status" </dev/null)"
       if [[ -z "$lines" ]]; then
         msg="$(cat "$status")"
         if [[ -n "$msg" ]]; then say "$msg"; else say "the Watchlist is empty"; fi
@@ -111,7 +113,7 @@ case "$cmd" in
       choice="$(printf '%s\n' "$lines" | "${picker[@]}")"
       [[ -z "$choice" ]] && break  # Esc / cancelled
       idx="${choice%%$'\t'*}"
-      msg="$("${cli[@]}" remove "$idx" 2>&1)" || true
+      msg="$("${cli[@]}" remove "$idx" </dev/null 2>&1)" || true
       if [[ -n "$msg" ]]; then say "$msg"; fi
     done
     ;;
