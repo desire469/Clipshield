@@ -43,4 +43,5 @@ _Avoid_: unmask, reveal, copy-real
 - The Watchlist is stored in plain text and holds the real Secret values, since substring matching
   makes hashed storage impossible.
 - No shape-based detection and no LSP in v1. Matching is literal, case-sensitive, anywhere in the
-  line, minimum 8 characters.
+  line. There is no minimum length — the user owns the trade-off between a short value and the
+  noise every accidental occurrence of it makes in masked copies.

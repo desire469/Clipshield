@@ -6,7 +6,6 @@ local M = {}
 M.config = {
 	watchlist = vim.fs.joinpath(vim.fn.stdpath("data"), "clipshield", "watchlist.jsonl"),
 	placeholder = "REDACTED",
-	min_length = 8,
 	keymaps = true,
 	prefix = "<leader>s",
 	-- How long the notification stays (ms). 0 = use Neovim default timeout.
@@ -112,14 +111,8 @@ local function selected_value()
 	local lines = vim.fn.getregion(vim.fn.getpos("'<"), vim.fn.getpos("'>"), { type = vim.fn.visualmode() })
 	local value = vim.trim(table.concat(lines, "\n"))
 
-	if #value < M.config.min_length then
-		vim.notify(
-			("clipshield: refusing to add %d characters — anything under %d matches far too much"):format(
-				#value,
-				M.config.min_length
-			),
-			vim.log.levels.WARN
-		)
+	if value == "" then
+		vim.notify("clipshield: the selection is empty", vim.log.levels.WARN)
 		return nil
 	end
 

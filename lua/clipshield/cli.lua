@@ -8,7 +8,7 @@
 -- `add` prints a status line to stdout. `copy` writes the Masked text to
 -- stdout exactly as received (bin/clipshield pipes it into wl-copy) and the
 -- status to stderr. Errors always go to stderr.
--- Exit codes: 0 done · 1 refused (too short, duplicate) · 2 no usable input.
+-- Exit codes: 0 done · 1 refused (duplicate) · 2 no usable input.
 --
 -- The Watchlist is the same file the editor uses. One exception: a user
 -- setup() that moves it is not loaded headless — point the CLI at it with
@@ -66,15 +66,6 @@ if cmd == "add" then
 	local value = vim.trim(text)
 	if value == "" then
 		die(2, "nothing to add — the selection is empty")
-	end
-	if #value < clipshield.config.min_length then
-		die(
-			1,
-			("refusing to add %d characters — anything under %d matches far too much"):format(
-				#value,
-				clipshield.config.min_length
-			)
-		)
 	end
 
 	-- A broken line in the file must not be silently dropped by the rewrite

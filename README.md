@@ -86,7 +86,7 @@ That is the one way a mouse selection gets masked: the terminal copies from its 
 buffer, and only a compositor bind can catch it on the way out. The add bind puts the selection
 on the Watchlist (`-n` names it, `-r` says what it reads as; both optional).
 
-Exit codes: `0` done, `1` refused (too short, duplicate), `2` no input, `64` bad arguments. The
+Exit codes: `0` done, `1` refused (duplicate), `2` no input, `64` bad arguments. The
 Watchlist file is shared with the editor; the only gap is a user `setup()` that moves it — a
 headless Neovim does not load your config — so point the CLI at it:
 `CLIPSHIELD_WATCHLIST=…/watchlist.jsonl clipshield …`.
@@ -112,7 +112,8 @@ means knowing what they are. Treat it like any other file full of secrets.
 Matching is exact and case-sensitive, anywhere in a line — including inside a URL such as
 `https://user:PASSWORD@host`. Entries may span several lines, so a whole PEM key works. Where two
 entries overlap, the longer one wins, so a short entry can never chop a longer key in half and leak
-the remainder. Entries shorter than 8 characters are refused: they would match half your code.
+the remainder. There is no minimum length — but matching is a literal substring anywhere in
+the line, so a short value will mask every accidental occurrence of itself.
 
 If a line in the file is not valid, that line is skipped, the rest keep working, and you get a loud
 error every time you copy until it is fixed. Silently masking nothing is the one failure this plugin
@@ -126,7 +127,6 @@ Defaults, all optional:
 require("clipshield").setup({
   watchlist = vim.fs.joinpath(vim.fn.stdpath("data"), "clipshield", "watchlist.jsonl"),
   placeholder = "REDACTED",  -- entries without their own replacement use this plus a number
-  min_length = 8,         -- refuse to add anything shorter
   keymaps = true,         -- false to bind everything yourself
   prefix = "<leader>s",
 })
