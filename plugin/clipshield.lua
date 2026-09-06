@@ -31,3 +31,7 @@ end, { desc = "Open the Watchlist" })
 vim.api.nvim_create_user_command("ClipshieldDelete", function()
   clipshield.delete()
 end, { desc = "Remove an entry from the Watchlist" })
+
+vim.api.nvim_create_user_command("ClipshieldTUI", function()
+  require("clipshield.tui").run()
+end, { desc = "Watchlist manager window (edit, reset, delete)" })

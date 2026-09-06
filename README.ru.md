@@ -94,6 +94,10 @@ bind = SUPER SHIFT, A, exec, /path/to/Clipshield/bin/clipshield add
 bind = SUPER SHIFT, L, exec, /path/to/Clipshield/bin/clipshield list
 ```
 
+`clipshield tui` — тот же менеджер терминальным приложением: плавающее окно в --clean Neovim —
+`e`/Enter правка, `r` нумерованный дефолт, `d` удалить, `q`/Esc выход, легенда клавиш в верхней
+полосе. Внутри редактора то же окно открывает `:ClipshieldTUI`.
+
 `list` открывает менеджер Watchlist (wofi, rofi, fuzzel или bemenu — кто первый найдётся;
 переопределяется через `CLIPSHIELD_PICKER="rofi -dmenu -i"`). Сверху меню — строка с клавишами,
 ниже записи вида `имя → замена` (или `имя · нумерованная`). Выбор записи открывает действия:

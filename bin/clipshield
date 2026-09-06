@@ -8,6 +8,7 @@
 #   clipshield copy                             put the current selection on the clipboard, Masked
 #   clipshield list                             Watchlist manager (wofi/rofi/fuzzel/bemenu +
 #                                               zenity): view, edit the replacement, delete
+#   clipshield tui                              the same manager as a terminal app
 #
 # Input: whatever is piped in; with none (a keybind has none) the Wayland
 # primary selection — the text selected right now — then the clipboard.
@@ -50,9 +51,9 @@ input() {
 
 cmd="${1:-}"
 case "$cmd" in
-  add | copy | list) shift ;;
+  add | copy | list | tui) shift ;;
   *)
-    echo "usage: clipshield add [-n NAME] [-r REPLACEMENT] | clipshield copy | clipshield list" >&2
+    echo "usage: clipshield add [-n NAME] [-r REPLACEMENT] | clipshield copy | clipshield list | clipshield tui" >&2
     exit 64
     ;;
 esac
@@ -149,5 +150,12 @@ case "$cmd" in
       esac
       if [[ -n "$msg" ]]; then say "$msg"; fi
     done
+    ;;
+  tui)
+    # The manager as a terminal app: same engine, floating window in a --clean
+    # nvim. exec replaces this shell — nothing runs after it.
+    CLIPSHIELD_STANDALONE=1 exec nvim --clean -u NONE \
+      --cmd "set rtp^=$root" \
+      "+lua require('clipshield.tui').run()"
     ;;
 esac

@@ -82,6 +82,10 @@ bind = SUPER SHIFT, A, exec, /path/to/Clipshield/bin/clipshield add
 bind = SUPER SHIFT, L, exec, /path/to/Clipshield/bin/clipshield list
 ```
 
+`clipshield tui` is the same manager as a terminal app: a floating window in a --clean Neovim —
+`e`/Enter edit, `r` numbered default, `d` delete, `q`/Esc quit, key legend in the top bar. Inside
+the editor, `:ClipshieldTUI` opens the same window.
+
 `list` opens the Watchlist manager (wofi, rofi, fuzzel or bemenu — the first found;
 override with `CLIPSHIELD_PICKER="rofi -dmenu -i"`). The key legend sits at the top of the
 menu; every entry reads as `name → replacement` (or `name · numbered`). Pick one to act on it:
